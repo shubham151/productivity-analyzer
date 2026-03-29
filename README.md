@@ -86,7 +86,7 @@ This is intentionally on-demand — running Gemini for all engineers upfront wou
 |---|---|
 | Frontend | React 19 + TypeScript, Vite |
 | Backend | FastAPI (Python 3.12) |
-| AI | Google Gemini 2.0 Flash |
+| AI | Google Gemini 3.0 Flash Preview |
 | Data source | GitHub REST API v3 |
 | Hosting | Vercel |
 | Storage | JSON files (no database) |
