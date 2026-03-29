@@ -2,89 +2,86 @@
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-TMP_DIR = Path(__file__).parent / "tmp"
-CONFIG_FILE = TMP_DIR / "config.json"
-METRICS_FILE = TMP_DIR / "metrics.json"
-AI_CACHE_FILE = TMP_DIR / "ai_cache.json"
+_DATA_DIR = Path(__file__).parent / "data"
+_VERCEL_TMP = Path("/tmp")
+_ON_VERCEL = os.environ.get("VERCEL") == "1"
 
 
-def load_config() -> dict[str, Any]:
-    """Load configuration from config.json."""
+def _data_path(filename: str) -> Path:
+    """Return local data path, or /tmp fallback on Vercel."""
+    return _VERCEL_TMP / filename if _ON_VERCEL else _DATA_DIR / filename
+
+
+def _load_json(path: Path, default: Any = None) -> Any:
+    """Read and parse a JSON file, returning default if the file does not exist."""
     try:
-        with open(CONFIG_FILE) as f:
+        with open(path) as f:
             return json.load(f)
     except FileNotFoundError:
-        logger.error("config.json not found at %s", CONFIG_FILE)
+        if default is not None:
+            return default
+        logger.error("File not found: %s", path)
         raise
     except json.JSONDecodeError as e:
-        logger.error("Invalid JSON in config.json: %s", e)
+        logger.error("Invalid JSON in %s: %s", path, e)
         raise
+
+
+def _save_json(path: Path, data: Any) -> None:
+    """Serialise data to JSON and write to path."""
+    try:
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+    except OSError as e:
+        logger.error("Failed to write %s: %s", path, e)
+        raise
+
+
+# ── Config ────────────────────────────────────────────────────────────────────
+
+def load_config() -> dict[str, Any]:
+    """Load config.json, falling back to the bundled default on Vercel."""
+    path = _data_path("config.json")
+    if _ON_VERCEL and not path.exists():
+        path = _DATA_DIR / "config.json"   # bundled read-only default
+    return _load_json(path)
 
 
 def save_config(config: dict[str, Any]) -> None:
-    """Save configuration to config.json."""
-    try:
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=2)
-    except OSError as e:
-        logger.error("Failed to save config.json: %s", e)
-        raise
+    """Save config.json."""
+    _save_json(_data_path("config.json"), config)
 
+
+# ── Metrics ───────────────────────────────────────────────────────────────────
 
 def load_metrics() -> dict[str, Any]:
-    """Load metrics from metrics.json."""
-    try:
-        with open(METRICS_FILE) as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError as e:
-        logger.error("Invalid JSON in metrics.json: %s", e)
-        return {}
+    """Load metrics.json, returning an empty dict if not yet pulled."""
+    return _load_json(_data_path("metrics.json"), default={})
 
 
 def save_metrics(metrics: dict[str, Any]) -> None:
-    """Save metrics to metrics.json."""
-    try:
-        with open(METRICS_FILE, "w") as f:
-            json.dump(metrics, f, indent=2)
-    except OSError as e:
-        logger.error("Failed to save metrics.json: %s", e)
-        raise
+    """Save metrics.json."""
+    _save_json(_data_path("metrics.json"), metrics)
 
+
+# ── AI cache ──────────────────────────────────────────────────────────────────
 
 def load_ai_cache() -> dict[str, Any]:
-    """Load AI enrichment cache from ai_cache.json."""
-    try:
-        with open(AI_CACHE_FILE) as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError as e:
-        logger.error("Invalid JSON in ai_cache.json: %s", e)
-        return {}
+    """Load ai_cache.json, returning an empty dict if not yet populated."""
+    return _load_json(_data_path("ai_cache.json"), default={})
 
 
 def save_ai_cache(cache: dict[str, Any]) -> None:
-    """Save AI enrichment cache to ai_cache.json."""
-    try:
-        with open(AI_CACHE_FILE, "w") as f:
-            json.dump(cache, f, indent=2)
-    except OSError as e:
-        logger.error("Failed to save ai_cache.json: %s", e)
-        raise
+    """Save ai_cache.json."""
+    _save_json(_data_path("ai_cache.json"), cache)
 
 
 def clear_ai_cache() -> None:
-    """Clear all AI enrichment cache entries."""
-    try:
-        with open(AI_CACHE_FILE, "w") as f:
-            json.dump({}, f)
-    except OSError as e:
-        logger.error("Failed to clear ai_cache.json: %s", e)
-        raise
+    """Reset ai_cache.json to an empty object."""
+    _save_json(_data_path("ai_cache.json"), {})

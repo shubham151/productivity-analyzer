@@ -15,7 +15,7 @@ build/
 .ruff_cache/
 
 # Environment variables
-backend/.env
+backend/.env.*
 .env
 
 # Data files (generated at runtime — not source controlled)
