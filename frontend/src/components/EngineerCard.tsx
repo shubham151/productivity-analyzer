@@ -96,19 +96,11 @@ export default function EngineerCard({ member, aiEnabled }: Props) {
     setEnrichError(null);
 
     try {
-      // Check cache first — 404 means not cached yet, fall through to POST
-      const cacheUrl = `/api/ai/enrich/${member.username}`;
-      const cached = await Api.get<AIEnrichment>(cacheUrl)
-        .catch(e => (String(e).includes('404') ? null : Promise.reject(e)));
-
-      if (cached) {
-        setEnrichment(cached);
-        return;
-      }
-
-      // Run fresh enrichment
-      const enrichUrl = `/api/ai/enrich/${member.username}`;
-      const result = await Api.post<AIEnrichment>(enrichUrl);
+      const url = `/api/ai/enrich/${member.username}`;
+      const result = await Api.post<AIEnrichment>(url, {
+        metrics: member.metrics,
+        prs: member.prs ?? [],
+      });
       setEnrichment(result);
     } catch (e) {
       setEnrichError(String(e));

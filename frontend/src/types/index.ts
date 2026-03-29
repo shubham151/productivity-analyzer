@@ -12,11 +12,18 @@ export interface MemberMetrics {
   weekly_activity: number[];
 }
 
+export interface MemberPR {
+  number: number;
+  title: string;
+  url: string;
+}
+
 export interface Member {
   username: string;
   display_name: string;
   avatar_url: string;
   metrics: MemberMetrics;
+  prs?: MemberPR[];
 }
 
 export interface MetaMeta {

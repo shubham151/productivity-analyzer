@@ -8,6 +8,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
@@ -169,11 +170,9 @@ async def pull_stream(request: Request) -> EventSourceResponse:
                     "total_prs_analyzed": len(prs),
                 },
                 "members": [
-                    {k: v for k, v in m.items() if k != "_prs"}
+                    {**{k: v for k, v in m.items() if k != "_prs"}, "prs": m["_prs"]}
                     for m in included
                 ],
-                # store PR lists separately for AI enrichment
-                "_pr_map": {m["username"]: m["_prs"] for m in included},
             }
             save_metrics(payload)
             clear_ai_cache()
@@ -198,18 +197,15 @@ async def pull_stream(request: Request) -> EventSourceResponse:
 # ---------------------------------------------------------------------------
 
 
-@app.get("/api/ai/enrich/{username}")
-async def get_ai_enrich(username: str) -> dict[str, Any]:
-    """Return cached AI enrichment for a user, or 404 if not cached."""
-    cache = load_ai_cache()
-    if username not in cache:
-        raise HTTPException(status_code=404, detail="No cached enrichment for this user")
-    return cache[username]
+class EnrichRequest(BaseModel):
+    """Metrics and PRs passed from the frontend — avoids reading from disk on Vercel."""
+    metrics: dict[str, Any]
+    prs: list[dict[str, Any]] = []
 
 
 @app.post("/api/ai/enrich/{username}")
-async def post_ai_enrich(username: str) -> dict[str, Any]:
-    """Run Gemini enrichment for a user and cache the result."""
+async def post_ai_enrich(username: str, body: EnrichRequest) -> dict[str, Any]:
+    """Run Gemini enrichment on demand using metrics supplied by the frontend."""
     config = load_config()
     ai_cfg = config.get("ai", {})
     if not ai_cfg.get("enabled", True):
@@ -219,25 +215,11 @@ async def post_ai_enrich(username: str) -> dict[str, Any]:
     if not api_key:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not set")
 
-    metrics_data = load_metrics()
-    if not metrics_data:
-        raise HTTPException(status_code=400, detail="No metrics data — run a pull first")
-
-    member = next(
-        (m for m in metrics_data.get("members", []) if m["username"] == username),
-        None,
-    )
-    if member is None:
-        raise HTTPException(status_code=404, detail=f"Engineer '{username}' not found in metrics")
-
-    pr_map = metrics_data.get("_pr_map", {})
-    prs = pr_map.get(username, [])
-
     try:
         result = await enrich_engineer(
             username=username,
-            metrics=member["metrics"],
-            prs=prs,
+            metrics=body.metrics,
+            prs=body.prs,
             model_name=ai_cfg.get("model", "gemini-2.0-flash"),
             api_key=api_key,
         )
@@ -245,15 +227,4 @@ async def post_ai_enrich(username: str) -> dict[str, Any]:
         logger.error("AI enrichment failed for %s: %s", username, e)
         raise HTTPException(status_code=500, detail=str(e))
 
-    from datetime import datetime, timezone
-
-    enriched: dict[str, Any] = {
-        "cached_at": datetime.now(timezone.utc).isoformat(),
-        **result,
-    }
-
-    cache = load_ai_cache()
-    cache[username] = enriched
-    save_ai_cache(cache)
-
-    return enriched
+    return result
