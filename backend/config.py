@@ -7,10 +7,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parent / "data"
-CONFIG_FILE = DATA_DIR / "config.json"
-METRICS_FILE = DATA_DIR / "metrics.json"
-AI_CACHE_FILE = DATA_DIR / "ai_cache.json"
+TMP_DIR = Path(__file__).parent / "tmp"
+CONFIG_FILE = TMP_DIR / "config.json"
+METRICS_FILE = TMP_DIR / "metrics.json"
+AI_CACHE_FILE = TMP_DIR / "ai_cache.json"
 
 
 def load_config() -> dict[str, Any]:
